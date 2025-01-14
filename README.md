@@ -72,6 +72,42 @@ const tools = [{
 
 ### API Flow
 
+## How it Works in Summary
+
+1. User calls `/api/assistant` with JSON like:
+   ```json
+   {
+     "userMessage": "Please create a new API gateway named 'orders-gateway' in project 'my-cool-project' in region 'us-central1' using the openapi spec at 'gs://my-bucket/openapi_orders.yaml'"
+   }
+   ```
+
+2. The route sets up a system prompt + user message + tool definitions for OpenAI, then calls `openai.chat.completions.create()`.
+
+3. If the model decides to call the `create_api_gateway` function, it returns `tool_calls` with function: `{ name: "create_api_gateway", arguments: "..." }`.
+
+4. We parse these arguments in TypeScript, call `createApiGateway(args)`, and get a JSON result (like `{"status":"success","gateway":"...","api_config":"..."}`).
+
+5. We append the function call + result back to the conversation and request a second completion from OpenAI.
+
+6. OpenAI then uses that result to form a final textual response, e.g.:
+   ```
+   "Your API Gateway was successfully created at projects/my-cool-project/locations/us-central1/gateways/orders-gateway..."
+   ```
+
+7. The final textual response is returned to the user.
+
+## Key Points
+
+- **App Router**: Next.js 13+ uses a single `route.ts` (or `page.ts` for pages) to handle requests. Here we created a POST endpoint.
+
+- **Function Schema**: In the tools array must be properly typed to ensure `strict: true` is valid (i.e., `additionalProperties: false`, etc.).
+
+- **Authentication**: Google APIs typically require authentication. In a real-world scenario, you would set credentials (service account) with environment variables or a credentials file. The snippet above omits that for brevity.
+
+- **Parallel vs. Single**: The code above assumes only one function call, but in principle, you should handle multiple calls in a loop if you allow the model to call multiple tools in one response.
+
+- **Error Handling**: This code includes basic try/catch, but real error handling for Google Cloud might be more involved (polling, tracking operation states, etc.).
+- 
 1. **Request Handling**
    ```typescript
    // POST to /api/assistant
